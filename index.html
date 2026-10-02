@@ -21,7 +21,10 @@
     position:fixed; top:22px; left:30px; z-index:5; pointer-events:none;
     font-size:58px; font-weight:800; color:#4a5068; letter-spacing:2px;
     text-shadow:0 2px 0 rgba(255,255,255,.6), 0 6px 16px rgba(80,90,120,.15);
+    transform-origin:left top;
   }
+  #score.bump { animation:bump .22s cubic-bezier(.3,1.7,.5,1); }
+  @keyframes bump { 0%{transform:scale(1);} 42%{transform:scale(1.17);} 100%{transform:scale(1);} }
   #level {
     position:fixed; top:88px; left:32px; z-index:5; pointer-events:none;
     font-size:13px; font-weight:700; color:#a8afc4; letter-spacing:2px;
@@ -116,6 +119,53 @@
   }
   .stats span { display:block; font-size:11.5px; color:#a4aabc; letter-spacing:1px; }
   .stats strong { display:block; font-size:22px; font-weight:800; color:#4a5068; margin-top:2px; }
+
+  /* ---------- 难度模式 ---------- */
+  .modes { display:flex; gap:10px; justify-content:center; margin:0 0 16px; }
+  .mode {
+    flex:1; border:0; cursor:pointer; border-radius:16px; padding:12px 8px;
+    background:#f6f8fb; text-align:center; font-family:inherit;
+    box-shadow:0 0 0 2px rgba(58,63,92,.08) inset;
+    transition:transform .12s, background .18s, box-shadow .18s;
+  }
+  .mode:active { transform:scale(.96); }
+  .mode b { display:block; font-size:16px; font-weight:800; color:#3a3f5c; letter-spacing:3px; }
+  .mode span { display:block; font-size:11px; color:#8b92a8; margin-top:3px; line-height:1.4; }
+  .mode.sel { background:#3a3f5c; box-shadow:0 0 0 2px #3a3f5c inset, 0 8px 20px rgba(58,63,92,.3); }
+  .mode.sel b { color:#fff; }
+  .mode.sel span { color:rgba(255,255,255,.72); }
+  .mode.hard b { color:#c0392b; }
+  .mode.hard.sel {
+    background:linear-gradient(160deg,#c0392b,#7d2018);
+    box-shadow:0 0 0 2px #8e2b20 inset, 0 8px 20px rgba(140,40,30,.35);
+  }
+  .mode.hard.sel b { color:#fff; }
+  .tiprow { margin:0 0 20px; font-size:11.5px; color:#8b92a8; line-height:1.6; min-height:34px; }
+  .tiprow.hard { color:#c0392b; }
+  .linkbtn {
+    border:0; background:none; font-family:inherit; font-size:12.5px; color:#8b92a8;
+    cursor:pointer; text-decoration:underline; padding:6px 4px 0;
+  }
+  #modeBadge {
+    position:fixed; top:110px; left:32px; z-index:5; pointer-events:none;
+    font-size:11.5px; font-weight:800; letter-spacing:1.5px; padding:3px 10px; border-radius:999px;
+    background:rgba(192,57,43,.12); color:#c0392b;
+    box-shadow:0 0 0 1.5px rgba(192,57,43,.35) inset;
+  }
+  #modeBadge.off { display:none; }
+
+  /* 超难模式的暗色舞台 */
+  body.dark { background:#242a3d; }
+  body.dark #score { color:#eef1fa; text-shadow:0 2px 0 rgba(0,0,0,.28), 0 6px 18px rgba(0,0,0,.4); }
+  body.dark #level { color:#8d95b4; }
+  body.dark #bestLabel { color:#8d95b4; }
+  body.dark #hint { color:#b3bacf; background:rgba(255,255,255,.10); box-shadow:0 3px 12px rgba(0,0,0,.35); }
+  body.dark .icobtn { background:rgba(255,255,255,.13); color:#e8ebf5; }
+  body.dark #modeBadge {
+    background:rgba(255,110,95,.18); color:#ff8574;
+    box-shadow:0 0 0 1.5px rgba(255,110,95,.42) inset;
+  }
+  body.dark .overlay { background:rgba(24,28,42,.72); }
 </style>
 </head>
 <body>
@@ -123,6 +173,7 @@
 
 <div id="score">0</div>
 <div id="level">第 1 关</div>
+<div id="modeBadge" class="off">超难 ×2</div>
 <div id="combo"></div>
 <div id="toast"></div>
 <div id="topRight">
@@ -137,14 +188,19 @@
   <div class="card">
     <h1>跳一跳</h1>
     <p class="sub">按住蓄力 · 松手起跳 · 越接近中心分越高</p>
+    <div class="modes">
+      <button class="mode sel" data-mode="normal"><b>普通</b><span>落点预测<br>边缘吸附</span></button>
+      <button class="mode hard" data-mode="hard"><b>超难 ×2</b><span>全关闭辅助<br>身后方块崩塌</span></button>
+    </div>
     <div class="dex">
       <div><b>🛒</b> 商店<span><em>停留越久加分越多</em></span></div>
-      <div><b>🕳️</b> 井盖<span><em>2.4 秒内必须跳走</em></span></div>
+      <div><b>🕳️</b> 井盖<span><em id="dexHole">2.4 秒内必须跳走</em></span></div>
       <div><b>↔️</b> 移动台<span><em>会滑动，需要预判</em></span></div>
       <div><b>✨</b> 小方块<span><em>又小又窄，命中 +3</em></span></div>
     </div>
+    <p class="tiprow" id="startTip"></p>
     <button id="btnStart" class="btn">开始游戏</button>
-    <p class="tiny">连击 3 次得护盾 🛡️，掉落时抵消一次 · 历史最佳 <b id="startBest">0</b></p>
+    <p class="tiny">历史最佳 <b id="startBest">0</b> · 按 H 键切换难度</p>
   </div>
 </div>
 
@@ -158,9 +214,9 @@
       <div><span>最高连击</span><strong id="stStreak">0</strong></div>
       <div><span>里程碑</span><strong id="stMile">0</strong></div>
     </div>
-    <p class="tiny">历史最佳 <b id="finalBest">0</b></p>
+    <p class="tiny" id="overBest">历史最佳 0</p>
     <button id="btnRetry" class="btn">再来一局</button>
-    <p class="tiny">按 空格 / R 也可以重来</p>
+    <button id="btnSwitch" class="linkbtn">切换难度模式</button>
   </div>
 </div>
 
@@ -171,19 +227,80 @@ const TAU = Math.PI * 2;
 const $ = s => document.querySelector(s);
 
 /* ================= 配置 ================= */
-const CFG = {
+// 基线数值，难度模式在此之上做覆盖
+const BASE = {
   chargeTime: 1.1,     // 蓄满所需秒数
   minDist: 88,         // 最短跳跃距离（世界单位）
   maxDist: 360,        // 最长跳跃距离
   perfectR: 13,        // 完美判定半径
   tol: 9,              // 落点容差（边缘宽度）
+  magnet: 15,          // 落点边缘吸附半径：差一点点时拉回台面（超难模式为 0）
   h: 56,               // 方块高度
   shopTick: 0.7,       // 商店加分间隔（秒）
   shopMax: 6,          // 商店单次停留加分上限
   holeTime: 2.4,       // 井盖可停留时间（秒）
   shieldStreak: 3,     // 连击达到多少获得护盾
   milestone: 10,       // 每多少分一个里程碑
+  hitLand: 0.045,      // 落地顿帧时长
+  hitPerfect: 0.075,   // 完美落地顿帧更长
+  // 难度曲线
+  gapBase: 34, gapRand: 120, gapStep: 20,   // 平台间距 = base + rand(0..rand + lv*step)
+  shrinkStep: 0.045, shrinkMin: 0.62,       // 每关缩小的比例与下限
+  spChance: 0.10, spStep: 0.05, spMax: 0.45,// 特殊方块出现概率
+  mvSpdA: 0.35, mvSpdB: 0.28,               // 移动台速度
 };
+
+// 超难模式：关掉所有辅助、收紧判定、加速难度曲线，得分 ×2 作为回报
+const MODES = {
+  normal: { name:'普通', mult:1, guide:true,  decay:false, cfg:{} },
+  hard: {
+    name:'超难', mult:2, guide:false, decay:true,
+    cfg: {
+      chargeTime: 0.78,        // 蓄力窗口更短，同样的手抖换算成更大的距离误差
+      perfectR: 8, tol: 7, magnet: 0,   // 完美圈更小，且不再有边缘吸附
+      holeTime: 1.3, shopMax: 3, shopTick: 0.85,
+      shieldStreak: 6, milestone: 8,    // 护盾更难拿，但升级更快
+      gapBase: 56, gapRand: 150, gapStep: 26,
+      shrinkStep: 0.07, shrinkMin: 0.44,
+      spChance: 0.34, spStep: 0.06, spMax: 0.78,
+      mvSpdA: 0.58, mvSpdB: 0.42,
+    },
+  },
+};
+
+const CFG = Object.assign({}, BASE);
+const DECAY_LIFE = 1.5;        // 崩塌方块从开始塌到消失的时长（秒）
+let mode = 'normal', M = MODES.normal, THEME = null;
+
+// 暗色舞台：超难模式换一套配色，一眼能看出不在普通局
+const THEMES = {
+  normal: {
+    bg: ['#e8eefb', '#f3f6fb', '#e3e9f4'],
+    hills: ['rgba(152,167,197,.34)', 'rgba(126,145,180,.34)'],
+    cloud: 0.5, dark: false,
+    body0: '#585d84', body1: '#3a3f63', base: '#2e3352',
+    manhole: ['#767c92', '#5c6276', '#484d5e'],
+    trail: '88,93,132',
+  },
+  hard: {
+    bg: ['#242a3d', '#333b52', '#1b2030'],
+    hills: ['rgba(96,112,152,.42)', 'rgba(58,72,108,.5)'],
+    cloud: 0.18, dark: true,
+    body0: '#cdd3e8', body1: '#8d95b8', base: '#6d769c',
+    manhole: ['#a8b0c8', '#7f88a4', '#616a86'],   // 井盖改浅色，否则在暗背景上会隐身
+    trail: '205,212,235',
+  },
+};
+
+function applyMode(m) {
+  mode = m; M = MODES[m];
+  Object.assign(CFG, BASE, M.cfg);
+  THEME = THEMES[mode];
+  assist = M.guide;                 // 超难强制关闭落点预测
+  best = loadBest();
+  buildBg();
+  syncModeUI();
+}
 
 const PALETTE = [
   ['#f9f4e8', '#e6dcc2', '#d3c7ab'],
@@ -210,8 +327,15 @@ function resize() {
   cvs.width = W * DPR; cvs.height = H * DPR;
   cvs.style.width = W + 'px'; cvs.style.height = H + 'px';
   S = Math.max(0.55, Math.min(1.35, Math.min(W, H) / 760));
+  buildBg();
+}
+function buildBg() {
+  if (!THEME) return;
   bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-  bgGrad.addColorStop(0, '#f4f6fa'); bgGrad.addColorStop(1, '#e5ebf3');
+  bgGrad.addColorStop(0, THEME.bg[0]);
+  bgGrad.addColorStop(0.5, THEME.bg[1]);
+  bgGrad.addColorStop(1, THEME.bg[2]);
+  document.body.style.background = THEME.bg[1];
 }
 window.addEventListener('resize', resize); resize();
 
@@ -256,6 +380,7 @@ const sMile    = () => [0, 0.12, 0.24, 0.40].forEach((d, i) =>
   tone(523 * Math.pow(1.26, i), 523 * Math.pow(1.26, i), 0.22, { vol:0.05, delay:d, type:'triangle' }));
 const sWarn    = () => tone(300, 240, 0.10, { type:'square', vol:0.028 });
 const sHole    = () => tone(180, 50, 0.5, { type:'sawtooth', vol:0.04 });
+const sRumble  = () => tone(110, 45, 0.32, { type:'sawtooth', vol:0.022 });   // 身后方块塌落
 const sSave    = () => { tone(300, 620, 0.2, { vol:0.05, type:'triangle' }); tone(620, 900, 0.24, { vol:0.05, delay:0.2 }); };
 
 /* ================= 游戏状态 ================= */
@@ -267,12 +392,35 @@ let chargeT0 = 0, shake = null, overAt = 0;
 let shield = false, assist = true;
 let perfectCount = 0, maxStreak = 0, mileCount = 0, nextMile = CFG.milestone;
 let offX = 0, offY = 0;        // 棋子相对所站平台中心的偏移（随移动台跟随）
-let texts = [], dusts = [], rings = [];
+let hitStop = 0, camPunch = 0; // 落地顿帧 / 相机下沉冲击
+let texts = [], dusts = [], rings = [], trail = [], sparks = [];
 
 best = loadBest();
 
-function loadBest() { try { return +localStorage.getItem('jump-best') || 0; } catch (e) { return 0; } }
-function saveBest() { try { localStorage.setItem('jump-best', best); } catch (e) {} }
+const bestKey = () => 'jump-best' + (mode === 'hard' ? '-hard' : '');
+function loadBest() { try { return +localStorage.getItem(bestKey()) || 0; } catch (e) { return 0; } }
+function saveBest() { try { localStorage.setItem(bestKey(), best); } catch (e) {} }
+function loadMode() { try { return localStorage.getItem('jump-mode') === 'hard' ? 'hard' : 'normal'; } catch (e) { return 'normal'; } }
+function saveMode() { try { localStorage.setItem('jump-mode', mode); } catch (e) {} }
+
+// 模式切换后的界面同步：按钮选中态、辅助开关、图鉴文案、最佳分
+function syncModeUI() {
+  document.querySelectorAll('.mode').forEach(b => b.classList.toggle('sel', b.dataset.mode === mode));
+  document.body.classList.toggle('dark', THEME.dark);
+  HILLS[0].col = THEME.hills[0]; HILLS[1].col = THEME.hills[1];
+  KIND_SKIN.manhole = THEME.manhole;
+  $('#assist').classList.toggle('dim', !assist);
+  $('#assist').style.opacity = M.guide ? '' : '.25';
+  $('#assist').title = M.guide ? '落点预测开关' : '超难模式无落点预测';
+  $('#modeBadge').classList.toggle('off', mode !== 'hard');
+  $('#dexHole').textContent = CFG.holeTime + ' 秒内必须跳走';
+  const tip = $('#startTip');
+  tip.classList.toggle('hard', mode === 'hard');
+  tip.innerHTML = mode === 'hard'
+    ? '无落点预测 · 无边缘吸附 · 完美圈更小<br>身后方块会崩塌 · 井盖仅 ' + CFG.holeTime + ' 秒<br>连击 ' + CFG.shieldStreak + ' 次才得护盾 · 得分 ×2'
+    : '连击 ' + CFG.shieldStreak + ' 次得护盾 🛡️，掉落时抵消一次<br>落点预测可在右上角 🎯 关闭';
+  updHUD();
+}
 
 /* ================= 平台生成 ================= */
 // 难度：随分数提升，间距变大、方块变小、特殊方块变多
@@ -284,7 +432,7 @@ function pickKind(lv) {
   if (lv >= 1) pool.push('mover', 'mover');
   if (lv >= 2) pool.push('tiny', 'tiny');
   if (lv >= 3) pool.push('manhole', 'manhole');
-  const chance = Math.min(0.45, 0.10 + lv * 0.05);
+  const chance = Math.min(CFG.spMax, CFG.spChance + lv * CFG.spStep);
   if (Math.random() > chance) return Math.random() < 0.35 ? 'cyl' : 'box';
   return pool[2 + ((Math.random() * (pool.length - 2)) | 0)];
 }
@@ -292,7 +440,7 @@ function pickKind(lv) {
 function makePlat(x, y, opts = {}) {
   const lv = opts.lv || 0;
   const kind = opts.kind || pickKind(lv);
-  const shrink = Math.max(0.62, 1 - lv * 0.045);
+  const shrink = Math.max(CFG.shrinkMin, 1 - lv * CFG.shrinkStep);
   const p = { x, y, kind, id: pid++, dip: 0, dipV: 0, timer: 0, gained: 0, tick: 0, phase: Math.random() * TAU };
   if (kind === 'cyl' || kind === 'manhole') {
     p.r = (kind === 'manhole' ? 34 + Math.random() * 8 : 30 + Math.random() * 18) * (kind === 'manhole' ? 1 : shrink);
@@ -321,18 +469,31 @@ function addPlat() {
 
   const lv = levelOf();
   const p = makePlat(0, 0, { lv });
-  const gap = 34 + Math.random() * (120 + lv * 20);
-  const d = halfAlong(last, dir) + halfAlong(p, dir) + gap;
-  p.x = last.x + (dir === 'x' ? d : 0);
-  p.y = last.y + (dir === 'y' ? d : 0);
-  if (piece) { if (dir === 'x') p.y = piece.y; else p.x = piece.x; }
-
+  // 移动台先定摆幅：它摆到最远端时也必须还在射程内
   if (p.kind === 'mover') {
     p.mvAxis = dir === 'x' ? 'y' : 'x';       // 垂直于来向滑动
-    p.mvBase = p[p.mvAxis];
-    p.mvAmp = 30 + Math.random() * 36;
-    p.mvSpd = 0.35 + Math.random() * 0.28;
+    p.mvAmp = Math.min(52, halfAlong(p, p.mvAxis) * 0.85 + 12);   // 摆幅与自身尺寸挂钩，始终留出命中窗口
+    p.mvSpd = CFG.mvSpdA + Math.random() * CFG.mvSpdB;
   }
+
+  const other = dir === 'x' ? 'y' : 'x';
+  p.jumpAxis = dir;                 // 记录来向：跳跃方向由它决定，不再靠当前坐标猜
+  // 站立的方块若正好沿这条轴滑动，起跳点会来回漂移 ±amp，射程要把这份摆幅让出来
+  const mvBack = (last.mvAmp && last.mvAxis === dir) ? last.mvAmp : 0;
+  const swing  = mvBack ? last[dir] - last.mvBase : 0;      // 当前摆动量
+  const maxReach = CFG.maxDist - 24 - mvBack;
+  const loBound  = CFG.minDist + 14 + mvBack;               // 摆到最近端也不能近到跳不过去
+  const gap = CFG.gapBase + Math.random() * (CFG.gapRand + lv * CFG.gapStep);
+  const want = Math.max(loBound,
+               Math.min(maxReach, halfAlong(last, dir) + halfAlong(p, dir) + gap));
+  // 以棋子的实际站位为基准摆放，且扣掉摆动量：站在移动台上时距离不会跟着漂
+  const base   = last[dir] - swing;
+  const anchor = (piece ? piece[dir] : last[dir]) - swing;
+  const sep = halfAlong(last, dir) + halfAlong(p, dir) + 24;   // 至少不重叠
+  p[dir] = Math.min(Math.max(anchor + want, base + sep), anchor + maxReach);
+  p[other] = piece ? piece[other] : last[other];
+
+  if (p.kind === 'mover') p.mvBase = p[p.mvAxis];
   p.born = performance.now();
   plats.push(p);
 }
@@ -361,7 +522,8 @@ function reset() {
   score = 0; streak = 0; power = 0; newRecord = false;
   shield = false; offX = 0; offY = 0;
   perfectCount = 0; maxStreak = 0; mileCount = 0; nextMile = CFG.milestone;
-  texts = []; dusts = []; rings = []; shake = null;
+  texts = []; dusts = []; rings = []; trail = []; sparks = []; shake = null;
+  hitStop = 0; camPunch = 0;
   camX = 0; camY = 0;
   updHUD();
 }
@@ -372,6 +534,22 @@ function startGame() {
   $('#start').classList.add('hidden');
   $('#over').classList.add('hidden');
   $('#hint').classList.remove('hidden');
+  $('#hint').textContent = mode === 'hard'
+    ? '没有落点预测 · 没有边缘吸附 · 身后的方块会塌'
+    : '按住鼠标 / 空格键蓄力，松开起跳 · 落在圆圈中心 = 完美';
+}
+
+// 切换难度：只能在开局前 / 结算后切换，中途换模式不生效
+function setMode(m) {
+  if (m === mode) return;
+  applyMode(m); saveMode();
+  if (state === 'over') showStart();
+}
+function showStart() {
+  state = 'ready';
+  reset();
+  $('#over').classList.add('hidden');
+  $('#start').classList.remove('hidden');
 }
 
 function press() {
@@ -383,7 +561,13 @@ function press() {
 
 // 跳跃方向：锁定在两条等测对角线之一，由平台链走向决定
 function jumpDir() {
-  const from = plats[cur], tgt = plats[cur + 1];
+  const tgt = plats[cur + 1], from = plats[cur];
+  // 优先用生成时记录的来向轴：移动台漂移后，靠当前坐标猜方向会猜错
+  if (tgt && tgt.jumpAxis) {
+    const a = tgt.jumpAxis;
+    const s = Math.sign(tgt[a] - piece[a]) || 1;
+    return a === 'x' ? { dirX: s, dirY: 0 } : { dirX: 0, dirY: s };
+  }
   if (!tgt) return { dirX: lastDir === 'y' ? 0 : 1, dirY: lastDir === 'y' ? 1 : 0 };
   const dirX = Math.abs(tgt.x - from.x) >= Math.abs(tgt.y - from.y) ? Math.sign(tgt.x - from.x) : 0;
   return { dirX, dirY: dirX === 0 ? Math.sign(tgt.y - from.y) || 1 : 0 };
@@ -401,10 +585,19 @@ function release() {
 }
 
 function addScore(n) {
-  score += n;
+  score += Math.round(n * M.mult);        // 超难模式得分 ×2
   while (score >= nextMile) { nextMile += CFG.milestone; milestone(); }
   if (score > best) { best = score; newRecord = true; saveBest(); }
   updHUD();
+  bumpScore();
+}
+
+// 分数变化时数字弹一下
+function bumpScore() {
+  const el = $('#score');
+  el.classList.remove('bump');
+  void el.offsetWidth;      // 强制重排，让动画能重复触发
+  el.classList.add('bump');
 }
 
 function milestone() {
@@ -427,7 +620,22 @@ function toast(txt) {
 
 function land() {
   piece.sq = 0.72; piece.sqV = 0; piece.z = 0;
-  const q = platAt(piece.x, piece.y, CFG.tol);
+  // 边缘吸附：差一点点没踩稳时把棋子拉回台面，消掉「就差一像素」的挫败感
+  let q = platAt(piece.x, piece.y, CFG.tol);
+  if (!q) {
+    const near = platAt(piece.x, piece.y, CFG.tol + CFG.magnet);
+    if (near) {
+      if (near.kind === 'cyl' || near.kind === 'manhole') {
+        const dx = piece.x - near.x, dy = piece.y - near.y;
+        const d0 = Math.hypot(dx, dy) || 1, lim = near.r * 0.9;
+        if (d0 > lim) { piece.x = near.x + dx / d0 * lim; piece.y = near.y + dy / d0 * lim; }
+      } else {
+        piece.x = Math.max(near.x - near.sx * 0.9, Math.min(near.x + near.sx * 0.9, piece.x));
+        piece.y = Math.max(near.y - near.sy * 0.9, Math.min(near.y + near.sy * 0.9, piece.y));
+      }
+      q = near;
+    }
+  }
   if (!q) { startFall(); return; }
   q.dip = 1; q.dipV = 0;
   const from = plats[cur];
@@ -449,13 +657,13 @@ function land() {
       rings.push({ x: q.x, y: q.y, t: 0, dur: 0.32, white: true });
       sPerfect(streak);
       dustBurst(q.x, q.y, 0, 12, true);
+      sparkBurst(q.x, q.y, 8 + Math.min(8, streak * 2));   // 完美专属星芒
     } else {
       sLand();
       dustBurst(piece.x, piece.y, 0, 9, false);
     }
     if (q.kind === 'tiny') gain += 2;                       // 小方块额外奖励
     if (escaped) { gain += 2; from.escaped = true; }        // 井盖脱险额外奖励
-
     texts.push({ x: q.x, y: q.y, t: 0, big: perfect, color: perfect ? '#e8a020' : '#5a6079',
                  txt: (perfect ? `+${gain} ${streak > 1 ? '连击×' + streak : '完美'}` : `+${gain}`) });
     addScore(gain);
@@ -469,13 +677,16 @@ function land() {
     q.timer = 0; q.tick = 0; q.gained = 0;
     addPlat();
     if (cur > 1) { const drop = cur - 1; plats.splice(0, drop); cur -= drop; }
+    if (M.decay && from && from !== q) from.decay = 0;   // 超难：走过的方块开始崩塌
     $('#hint').classList.add('hidden');
   } else {
     streak = 0; showCombo(0);
     sLand();
     dustBurst(piece.x, piece.y, 0, 9, false);
   }
-  shake = { t: 0.12, amp: 2.5 };
+  shake = { t: perfect ? 0.16 : 0.11, amp: perfect ? 3.4 : 2.2 };
+  hitStop = perfect ? CFG.hitPerfect : CFG.hitLand;   // 顿帧：命中越准，冲击越重
+  camPunch = perfect ? 7 : 4.5;                       // 相机随之下沉再回弹
   power = 0;
   state = 'aim';
 }
@@ -492,7 +703,7 @@ function gameOver() {
   state = 'over';
   saveBest(); updHUD();
   $('#finalScore').textContent = score;
-  $('#finalBest').textContent = best;
+  $('#overBest').textContent = `历史最佳 ${best} · ${M.name}模式`;
   $('#stPerf').textContent = perfectCount;
   $('#stStreak').textContent = maxStreak;
   $('#stMile').textContent = mileCount;
@@ -535,6 +746,15 @@ function dustBurst(x, y, z, n = 9, gold = false) {
   }
 }
 
+// 完美命中的星芒：从落点向外放射的短线
+function sparkBurst(x, y, n = 10) {
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU + Math.random() * 0.35;
+    sparks.push({ x, y, a, len: 14 + Math.random() * 24, v: 150 + Math.random() * 140,
+                  t: 0, life: 0.34 + Math.random() * 0.16 });
+  }
+}
+
 const cloudSpr = document.createElement('canvas');
 cloudSpr.width = cloudSpr.height = 160;
 {
@@ -552,6 +772,20 @@ const wrap = (v, m) => ((v % m) + m) % m;
 
 /* ================= 更新 ================= */
 function update(dt, now) {
+  const raw = dt;
+  if (hitStop > 0) { hitStop -= raw; dt *= 0.16; }        // 落地顿帧：短暂近乎静止，放大冲击感
+  camPunch += (0 - camPunch) * Math.min(1, raw * 11);      // 相机下沉后回弹
+  // 超难：身后走过的方块塌落消失，逼你一直往前
+  if (M.decay) {
+    for (let i = plats.length - 1; i >= 0; i--) {
+      const p = plats[i];
+      if (p.decay == null || i === cur) continue;
+      p.decay += dt;
+      if (p.decay > 0.8 && !p.puffed) { p.puffed = 1; dustBurst(p.x, p.y, 0, 12, false); sRumble(); }
+      if (p.decay > DECAY_LIFE) { plats.splice(i, 1); if (i < cur) cur--; }
+    }
+  }
+
   // 移动台滑动
   for (const p of plats) {
     if (p.kind === 'mover') p[p.mvAxis] = p.mvBase + Math.sin(now / 1000 * p.mvSpd * TAU + p.phase) * p.mvAmp;
@@ -573,7 +807,8 @@ function update(dt, now) {
     piece.x = flight.sx + flight.dirX * flight.d * u;
     piece.y = flight.sy + flight.dirY * flight.d * u;
     piece.z = flight.H * 4 * u * (1 - u);
-    piece.sq = 1 + 0.12 * Math.sin(Math.PI * u);
+    piece.sq = 1 + 0.16 * Math.sin(Math.PI * Math.pow(u, 0.72));   // 起跳拉伸，空中渐收
+    trail.push({ x: piece.x, y: piece.y, z: piece.z, t: 0 });
     if (u >= 1) land();
   } else if (state === 'falling') {
     if (shield && !fall.noRescue && fall.vz > 0 && piece.z < -18) { rescue(); }
@@ -637,6 +872,8 @@ function update(dt, now) {
 
   texts = texts.filter(t => (t.t += dt) < 0.95);
   rings = rings.filter(r => (r.t += dt) < r.dur);
+  sparks = sparks.filter(s => (s.t += dt) < s.life);
+  trail = trail.filter(t => (t.t += dt) < 0.22);
   dusts = dusts.filter(d => {
     d.t += dt;
     d.x += d.vx * dt; d.y += d.vy * dt;
@@ -648,6 +885,49 @@ function update(dt, now) {
 }
 
 /* ================= 绘制 ================= */
+// 颜色明暗微调，用于顶面 / 侧面渐变
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = k => Math.max(0, Math.min(255, ((n >> k) & 255) + amt * 255)) | 0;
+  return `rgb(${c(16)},${c(8)},${c(0)})`;
+}
+
+// 柔和阴影贴图（离屏预渲染，避免每帧重建渐变）
+const shadowSpr = document.createElement('canvas');
+shadowSpr.width = shadowSpr.height = 128;
+{
+  const g = shadowSpr.getContext('2d');
+  const rg = g.createRadialGradient(64, 64, 1, 64, 64, 62);
+  rg.addColorStop(0, 'rgba(48,60,98,.36)');
+  rg.addColorStop(0.5, 'rgba(48,60,98,.17)');
+  rg.addColorStop(1, 'rgba(48,60,98,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+}
+
+// 远景山峦：两层正弦轮廓，随相机做视差，给场景补上纵深
+const HILLS = [
+  { seed: 0.7, amp: 0.052, base: 0.585, par: 0.18, col: 'rgba(152,167,197,.34)' },
+  { seed: 2.9, amp: 0.072, base: 0.655, par: 0.35, col: 'rgba(126,145,180,.34)' },
+];
+function hillY(u, sd) {
+  return Math.sin(u * 3.1 + sd) * 0.55 + Math.sin(u * 7.7 + sd * 2.3) * 0.3 + Math.sin(u * 14.3 + sd * 3.9) * 0.14;
+}
+function drawHills() {
+  const shift = -(camX + camY) * S / W;   // 相机位移换算成 0~1 的采样偏移
+  for (const hl of HILLS) {
+    const baseY = H * hl.base, amp = H * hl.amp, sd = shift * hl.par;
+    ctx.fillStyle = hl.col;
+    ctx.beginPath();
+    ctx.moveTo(-40, H);
+    for (let i = 0; i <= 72; i++) {
+      const u = i / 72;
+      ctx.lineTo(-40 + u * (W + 80), baseY - hillY(u + sd, hl.seed) * amp);
+    }
+    ctx.lineTo(W + 40, H);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
 function bornScale(p, now) {
   if (!p.born) return 1;
   const u = Math.min(1, (now - p.born) / 300);
@@ -659,13 +939,21 @@ function bornAlpha(p, now) {
 }
 
 function drawShadow(p, now) {
+  const dc = p.decay == null ? -1 : p.decay;
+  if (dc > DECAY_LIFE) return;
   const sc = bornScale(p, now);
-  const c = proj(p.x, p.y, -CFG.h * sc);
-  const rx = ((p.kind === 'cyl' || p.kind === 'manhole') ? p.r * 1.3 : (p.sx + p.sy) * 0.62) * S * sc;
-  ctx.fillStyle = 'rgba(58,70,110,.15)';
-  ctx.beginPath();
-  ctx.ellipse(c[0], c[1] + 5 * S, rx, rx * 0.5, 0, 0, TAU);
-  ctx.fill();
+  const sink = sinkOf(p);
+  const c = proj(p.x, p.y, -CFG.h * sc - sink);
+  const rx = ((p.kind === 'cyl' || p.kind === 'manhole') ? p.r * 1.45 : (p.sx + p.sy) * 0.7) * S * sc;
+  ctx.globalAlpha = dc < 0 ? 1 : Math.max(0, 1 - dc / (DECAY_LIFE * 0.8));
+  ctx.drawImage(shadowSpr, c[0] - rx, c[1] + 5 * S - rx * 0.5, rx * 2, rx);
+  ctx.globalAlpha = 1;
+}
+
+// 崩塌中的方块：加速下沉
+function sinkOf(p) {
+  if (p.decay == null) return 0;
+  return Math.pow(p.decay / DECAY_LIFE, 2) * 190;
 }
 
 // 顶面四个角（2:1 轴测），供特殊标记绘制复用
@@ -684,15 +972,25 @@ function topPoint(c, sx2, sy2, u, v) {
 }
 
 function drawPlat(p, now) {
+  const dc = p.decay == null ? -1 : p.decay;
+  if (dc > DECAY_LIFE) return;
   const sc = bornScale(p, now), al = bornAlpha(p, now);
   if (sc <= 0.01) return;
   const h = CFG.h * S * sc;
-  const c = proj(p.x, p.y, -(p.dip || 0) * 4);
-  ctx.globalAlpha = al;
+  const c = proj(p.x, p.y, -(p.dip || 0) * 4 - sinkOf(p));
+  // 崩塌：先抖一下再淡出
+  if (dc >= 0) {
+    ctx.globalAlpha = al * Math.max(0, 1 - Math.pow(dc / DECAY_LIFE, 1.7));
+    c[0] += Math.sin(dc * 46) * 2.2 * S * Math.min(1, dc);
+  } else {
+    ctx.globalAlpha = al;
+  }
 
   if (p.kind === 'cyl' || p.kind === 'manhole') {
     const r = p.r * S * sc;
-    ctx.fillStyle = p.right;
+    const gs = ctx.createLinearGradient(0, c[1], 0, c[1] + h);
+    gs.addColorStop(0, shade(p.right, 0.05)); gs.addColorStop(1, shade(p.right, -0.12));
+    ctx.fillStyle = gs;
     ctx.beginPath();
     ctx.moveTo(c[0] - r, c[1]);
     ctx.lineTo(c[0] - r, c[1] + h);
@@ -700,26 +998,36 @@ function drawPlat(p, now) {
     ctx.lineTo(c[0] + r, c[1]);
     ctx.ellipse(c[0], c[1], r, r * 0.5, 0, 0, Math.PI, false);
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle = p.top;
+    const gt = ctx.createLinearGradient(c[0] - r, c[1] - r * 0.5, c[0] + r, c[1] + r * 0.5);
+    gt.addColorStop(0, shade(p.top, 0.10)); gt.addColorStop(1, shade(p.top, -0.06));
+    ctx.fillStyle = gt;
     ctx.beginPath(); ctx.ellipse(c[0], c[1], r, r * 0.5, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = shade(p.top, -0.20); ctx.lineWidth = 1; ctx.stroke();
   } else {
     const sx = p.sx * S * sc, sy = p.sy * S * sc;
     const q = topPoly(c, sx, sy);
-    ctx.fillStyle = p.left;
+    const gL = ctx.createLinearGradient(0, q.D[1], 0, q.D[1] + h);
+    gL.addColorStop(0, shade(p.left, 0.03)); gL.addColorStop(1, shade(p.left, -0.14));
+    ctx.fillStyle = gL;
     ctx.beginPath();
     ctx.moveTo(q.D[0], q.D[1]); ctx.lineTo(q.C[0], q.C[1]);
     ctx.lineTo(q.C[0], q.C[1] + h); ctx.lineTo(q.D[0], q.D[1] + h);
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle = p.right;
+    const gR = ctx.createLinearGradient(0, q.B[1], 0, q.B[1] + h);
+    gR.addColorStop(0, shade(p.right, 0.03)); gR.addColorStop(1, shade(p.right, -0.14));
+    ctx.fillStyle = gR;
     ctx.beginPath();
     ctx.moveTo(q.B[0], q.B[1]); ctx.lineTo(q.C[0], q.C[1]);
     ctx.lineTo(q.C[0], q.C[1] + h); ctx.lineTo(q.B[0], q.B[1] + h);
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle = p.top;
+    const gT = ctx.createLinearGradient(q.A[0], q.A[1], q.C[0], q.C[1]);
+    gT.addColorStop(0, shade(p.top, 0.11)); gT.addColorStop(1, shade(p.top, -0.06));
+    ctx.fillStyle = gT;
     ctx.beginPath();
     ctx.moveTo(q.A[0], q.A[1]); ctx.lineTo(q.B[0], q.B[1]);
     ctx.lineTo(q.C[0], q.C[1]); ctx.lineTo(q.D[0], q.D[1]);
     ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = shade(p.top, -0.20); ctx.lineWidth = 1; ctx.stroke();
   }
 
   drawMark(p, c, sc, now);
@@ -837,16 +1145,26 @@ function drawPieceBody(now) {
   const [px, py] = proj(piece.x, piece.y, piece.z);
   ctx.save();
   ctx.translate(px, py);
+  if (state === 'charging' && power >= 1) ctx.translate(Math.sin(now / 42) * 1.7 * S, 0); // 满蓄力抖动提示
   const k = piece.sq;
   ctx.scale(1 + (1 - k) * 0.55, k);
 
   const w = 12.5 * S, hh = 32 * S, r = w * 0.60, hy = -hh + r;
 
-  ctx.fillStyle = '#2e3352';
+  // 连击光晕
+  if (streak >= 2 && (state === 'aim' || state === 'charging')) {
+    const gl = ctx.createRadialGradient(0, -hh * 0.45, 1, 0, -hh * 0.45, 40 * S);
+    gl.addColorStop(0, 'rgba(247,183,49,.36)');
+    gl.addColorStop(1, 'rgba(247,183,49,0)');
+    ctx.fillStyle = gl;
+    ctx.beginPath(); ctx.ellipse(0, -hh * 0.45, 40 * S, 40 * S, 0, 0, TAU); ctx.fill();
+  }
+
+  ctx.fillStyle = THEME.base;
   ctx.beginPath(); ctx.ellipse(0, -1, w * 1.06, w * 0.42, 0, 0, TAU); ctx.fill();
 
   const g = ctx.createLinearGradient(0, -hh, 0, 0);
-  g.addColorStop(0, '#585d84'); g.addColorStop(1, '#3a3f63');
+  g.addColorStop(0, THEME.body0); g.addColorStop(1, THEME.body1);
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.moveTo(-w, -1);
@@ -864,7 +1182,8 @@ function drawPieceBody(now) {
     ctx.strokeStyle = 'rgba(247,183,49,.22)';
     ctx.lineWidth = 3.5 * S;
     ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * 0.55, 0, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = 'rgba(247,183,49,.95)';
+    const blink = power >= 1 ? 0.45 + 0.55 * Math.abs(Math.sin(now / 70)) : 1;   // 蓄满后闪烁
+    ctx.strokeStyle = `rgba(247,183,49,${(0.95 * blink).toFixed(3)})`;
     ctx.beginPath();
     ctx.ellipse(0, 0, rr, rr * 0.55, 0, -Math.PI / 2, -Math.PI / 2 + power * TAU);
     ctx.stroke();
@@ -898,7 +1217,32 @@ function drawAimGuide() {
   ctx.beginPath(); ctx.ellipse(to[0], to[1], 2.6 * S, 1.4 * S, 0, 0, TAU); ctx.fill();
 }
 
+// 飞行拖尾残影
+function drawTrail() {
+  for (const t of trail) {
+    const u = t.t / 0.22, a = (1 - u) * 0.32;
+    const c = proj(t.x, t.y, t.z);
+    ctx.fillStyle = `rgba(${THEME.trail},${a.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.ellipse(c[0], c[1] - 13 * S, 10 * S * (1 - u * 0.6), 5 * S * (1 - u * 0.6), 0, 0, TAU);
+    ctx.fill();
+  }
+}
+
 function drawEffects() {
+  // 完美命中星芒
+  ctx.lineCap = 'round';
+  for (const s of sparks) {
+    const u = s.t / s.life;
+    const r0 = s.v * s.t * (1 - u * 0.45), r1 = r0 + s.len * (1 - u);
+    const p0 = proj(s.x + Math.cos(s.a) * r0, s.y + Math.sin(s.a) * r0, 10);
+    const p1 = proj(s.x + Math.cos(s.a) * r1, s.y + Math.sin(s.a) * r1, 10);
+    ctx.strokeStyle = `rgba(240,178,60,${(0.92 * (1 - u)).toFixed(3)})`;
+    ctx.lineWidth = 2.6 * S * (1 - u);
+    ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+
   for (const r of rings) {
     const c = proj(r.x, r.y, 0);
     const u = Math.min(1, r.t / r.dur);
@@ -935,7 +1279,7 @@ function drawClouds(now) {
     const x = wrap(c.fx * (W + 400) + now / 1000 * c.v, W + 400) - 200;
     const y = wrap(c.fy * (H + 300) - (camX + camY) * S * 0.02, H + 300) - 150;
     const s = c.s * Math.min(W, H) / 4;
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = THEME.cloud;
     ctx.drawImage(cloudSpr, x - s, y - s, s * 2, s * 2);
     ctx.globalAlpha = 1;
   }
@@ -956,12 +1300,14 @@ function render(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
+  drawHills();
   drawClouds(now);
 
   if (shake) {
-    const a = shake.amp * (shake.t / 0.12);
+    const a = shake.amp * Math.min(1, shake.t / 0.12);
     ctx.translate((Math.random() - 0.5) * 2 * a, (Math.random() - 0.5) * 2 * a);
   }
+  if (Math.abs(camPunch) > 0.05) ctx.translate(0, camPunch);   // 落地冲击：画面下沉再回弹
 
   for (const p of plats) drawShadow(p, now);
   drawAimGuide();
@@ -969,10 +1315,12 @@ function render(now) {
   const airborne = state === 'flying' || state === 'falling' || state === 'over';
   const items = plats.map(p => ({ k: p.x + p.y, p }));
   items.push({ k: topKeyAt(piece.x, piece.y) + 0.002, shadow: true });
+  items.push({ k: airborne ? 1e9 - 1 : topKeyAt(piece.x, piece.y) + 0.003, trail: true });
   items.push({ k: airborne ? 1e9 : topKeyAt(piece.x, piece.y) + 0.004, piece: true });
   items.sort((a, b) => a.k - b.k);
   for (const it of items) {
     if (it.piece) drawPieceBody(now);
+    else if (it.trail) drawTrail();
     else if (it.shadow) drawPieceShadow();
     else drawPlat(it.p, now);
   }
@@ -992,37 +1340,50 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     if (!e.repeat) {
       if (state === 'over') { if (performance.now() - overAt > 500) startGame(); }
+      else if (state === 'ready') startGame();
       else press();
     }
   } else if ((e.code === 'Enter' || e.code === 'KeyR') && state === 'over') {
     startGame();
+  } else if (e.code === 'KeyH' && (state === 'ready' || state === 'over')) {
+    setMode(mode === 'hard' ? 'normal' : 'hard');
   }
 });
 window.addEventListener('keyup', e => { if (e.code === 'Space') release(); });
 
 $('#btnStart').addEventListener('click', startGame);
 $('#btnRetry').addEventListener('click', startGame);
+$('#btnSwitch').addEventListener('click', () => setMode(mode === 'hard' ? 'normal' : 'hard'));
+document.querySelectorAll('.mode').forEach(b => {
+  b.addEventListener('click', () => setMode(b.dataset.mode));
+});
 $('#mute').addEventListener('click', () => {
   muted = !muted;
   $('#mute').textContent = muted ? '🔇' : '🔊';
 });
 $('#assist').addEventListener('click', () => {
+  if (!M.guide) { toast('超难模式 · 无预测'); return; }
   assist = !assist;
   $('#assist').classList.toggle('dim', !assist);
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
 
 /* ================= 主循环 ================= */
+applyMode(loadMode());
 reset();
 state = 'ready';
 window.__jump = () => ({
-  state, score, streak, cur, shield,
+  state, score, streak, cur, shield, mode,
+  cfg: { magnet: CFG.magnet, perfectR: CFG.perfectR, holeTime: CFG.holeTime,
+         milestone: CFG.milestone, shieldStreak: CFG.shieldStreak, chargeTime: CFG.chargeTime },
+  decaying: plats.filter(p => p.decay != null).length,
   piece: { x: +piece.x.toFixed(1), y: +piece.y.toFixed(1), z: +piece.z.toFixed(1) },
-  plats: plats.map(p => ({ x: +p.x.toFixed(1), y: +p.y.toFixed(1), kind: p.kind,
-                           sx: p.sx, sy: p.sy, r: p.r,
+  plats: plats.map(p => ({ x: +p.x.toFixed(1), y: +p.y.toFixed(1), kind: p.kind, axis: p.jumpAxis,
+                           sx: p.sx, sy: p.sy, r: p.r, decay: p.decay == null ? null : +p.decay.toFixed(2),
                            timer: +p.timer.toFixed(2), gained: p.gained, escaped: !!p.escaped })),
   fx: { dusts: dusts.length, rings: rings.length, texts: texts.length },
 });
+window.__setMode = applyMode;
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.033, (now - last) / 1000);
